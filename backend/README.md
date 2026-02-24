@@ -62,6 +62,15 @@ npm run prisma:generate
 npm run start:dev
 ```
 
+## Git Hooks
+
+Husky hooks are configured for local quality gates:
+
+- `pre-commit`: runs `npm run format` and re-stages formatted backend files.
+- `pre-push`: runs `npm run test -- --runInBand`.
+
+They install automatically when you run `npm install` in `backend` via the `prepare` script.
+
 ## Environment Validation
 
 Configuration is loaded through `@nestjs/config` and validated before the app boots using `class-validator` + `class-transformer`.
