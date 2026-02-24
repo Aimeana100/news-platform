@@ -1,0 +1,96 @@
+name: Backend Main Pipeline
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - backend/**
+      - docker-compose.yml
+      - .github/workflows/**
+  workflow_dispatch:
+
+concurrency:
+  group: backend-main-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  quality-gates:
+    name: ${{ matrix.stage_name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - stage_name: Format Check
+            command: npx prettier --check "src/**/*.ts" "test/**/*.ts"
+          - stage_name: Lint Check
+            command: npx eslint "{src,apps,libs,test}/**/*.ts"
+          - stage_name: Unit Tests
+            command: npm run test -- --runInBand --ci
+          - stage_name: E2E Tests
+            command: npm run test:e2e -- --runInBand --ci
+          - stage_name: Build
+            command: npm run build
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install Dependencies
+        env:
+          HUSKY: 0
+        run: npm ci
+
+      - name: Run Stage
+        run: ${{ matrix.command }}
+
+  package:
+    name: Build Deployable Docker Image
+    runs-on: ubuntu-latest
+    needs: quality-gates
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate Docker Compose Config
+        run: docker compose -f docker-compose.yml config > /dev/null
+
+      - name: Build Backend Docker Image
+        run: |
+          docker build \
+            --file backend/Dockerfile \
+            --tag news-platform-backend:${{ github.sha }} \
+            ./backend
+
+      - name: Placeholder for Registry Push
+        run: |
+          echo "TODO: Push image to registry (GHCR/ECR/GCR)."
+          echo "Suggested tag: news-platform-backend:${{ github.sha }}"
+
+  deploy-production-placeholder:
+    name: Deploy Production (Placeholder)
+    runs-on: ubuntu-latest
+    needs: package
+    steps:
+      - name: Placeholder Deployment Plan
+        run: |
+          echo "Main branch changes were verified and packaged."
+          echo "TODO: Implement real production deployment:"
+          echo "1) Authenticate to registry and pull immutable image tag."
+          echo "2) Run 'prisma migrate deploy' against production database."
+          echo "3) Roll out app update (Kubernetes/ECS/VM) with health checks."
+          echo "4) Add post-deploy smoke tests and rollback automation."

@@ -71,6 +71,14 @@ Husky hooks are configured for local quality gates:
 
 They install automatically when you run `npm install` in `backend` via the `prepare` script.
 
+## CI/CD (GitHub Actions)
+
+Repository workflows are defined in `.github/workflows`:
+
+- `backend-pr-ci.yml`: runs on PR events and validates format, lint, tests, build, and Docker image build.
+- `backend-main-pipeline.yml`: runs on push to `main`, repeats quality gates, builds deployable Docker image, and includes production deployment placeholders.
+- CI stages are structured as separate jobs for better visibility and faster failure diagnosis (format, lint, unit tests, e2e tests, build).
+
 ## Environment Validation
 
 Configuration is loaded through `@nestjs/config` and validated before the app boots using `class-validator` + `class-transformer`.
