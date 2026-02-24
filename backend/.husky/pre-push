@@ -1,0 +1,2 @@
+cd backend || exit 1
+npm run test -- --runInBand

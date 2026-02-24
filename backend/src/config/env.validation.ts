@@ -185,6 +185,32 @@ export class EnvironmentVariables {
   )
   DATABASE_URL!: string;
 
+  @Transform(({ value }) => toInteger(value))
+  @IsInt({ message: 'DB_POOL_MAX must be an integer' })
+  @Min(1, { message: 'DB_POOL_MAX must be between 1 and 100' })
+  @Max(100, { message: 'DB_POOL_MAX must be between 1 and 100' })
+  DB_POOL_MAX = 20;
+
+  @Transform(({ value }) => toInteger(value))
+  @IsInt({ message: 'DB_POOL_IDLE_TIMEOUT_MS must be an integer' })
+  @Min(1000, {
+    message: 'DB_POOL_IDLE_TIMEOUT_MS must be between 1000 and 600000',
+  })
+  @Max(600000, {
+    message: 'DB_POOL_IDLE_TIMEOUT_MS must be between 1000 and 600000',
+  })
+  DB_POOL_IDLE_TIMEOUT_MS = 30000;
+
+  @Transform(({ value }) => toInteger(value))
+  @IsInt({ message: 'DB_POOL_CONNECTION_TIMEOUT_MS must be an integer' })
+  @Min(1000, {
+    message: 'DB_POOL_CONNECTION_TIMEOUT_MS must be between 1000 and 120000',
+  })
+  @Max(120000, {
+    message: 'DB_POOL_CONNECTION_TIMEOUT_MS must be between 1000 and 120000',
+  })
+  DB_POOL_CONNECTION_TIMEOUT_MS = 10000;
+
   @IsString({ message: 'REDIS_URL is required and must be a string' })
   @IsNotEmpty({ message: 'REDIS_URL must not be empty' })
   @IsUrl(
