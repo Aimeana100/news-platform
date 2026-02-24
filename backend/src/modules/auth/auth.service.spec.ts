@@ -7,7 +7,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { UserRole } from '../../generated/prisma/enums';
-import { PrismaService } from '../../prisma/prisma.service';
+import { UsersRepository } from '../users/repositories/users.repository';
 import { LoginDto } from './dto/login.dto';
 import { SignupDto } from './dto/signup.dto';
 import { AuthService } from './auth.service';
@@ -16,14 +16,13 @@ type CreatedUser = {
   id: string;
   name: string;
   email: string;
+  password: string;
   role: UserRole;
 };
 
-type MockPrisma = {
-  user: {
-    findUnique: jest.Mock<Promise<unknown>, [unknown]>;
-    create: jest.Mock<Promise<CreatedUser>, [unknown]>;
-  };
+type MockUsersRepository = {
+  findByEmail: jest.Mock<Promise<CreatedUser | null>, [string]>;
+  create: jest.Mock<Promise<CreatedUser>, [unknown]>;
 };
 
 type MockJwtService = {
@@ -32,26 +31,24 @@ type MockJwtService = {
 
 describe('AuthService', () => {
   let authService: AuthService;
-  let prisma: MockPrisma;
+  let usersRepository: MockUsersRepository;
   let jwtService: MockJwtService;
 
   beforeEach(() => {
-    const findUnique = jest.fn<Promise<unknown>, [unknown]>();
+    const findByEmail = jest.fn<Promise<CreatedUser | null>, [string]>();
     const create = jest.fn<Promise<CreatedUser>, [unknown]>();
     const signAsync = jest.fn<Promise<string>, [unknown]>();
 
-    prisma = {
-      user: {
-        findUnique,
-        create,
-      },
+    usersRepository = {
+      findByEmail,
+      create,
     };
     jwtService = {
       signAsync,
     };
 
     authService = new AuthService(
-      prisma as unknown as PrismaService,
+      usersRepository as unknown as UsersRepository,
       jwtService as unknown as JwtService,
     );
     jest.spyOn(Logger.prototype, 'error').mockImplementation();
@@ -65,7 +62,7 @@ describe('AuthService', () => {
     name: 'Jane Doe',
     email: 'jane@example.com',
     password: 'StrongPass1!',
-    role: 'author',
+    role: 'Author',
   });
 
   const buildLoginPayload = (): LoginDto => ({
@@ -74,69 +71,76 @@ describe('AuthService', () => {
   });
 
   it('returns 409 conflict when email already exists', async () => {
-    prisma.user.findUnique.mockResolvedValue({ id: 'existing-user-id' });
+    usersRepository.findByEmail.mockResolvedValue({
+      id: 'existing-user-id',
+      name: 'Existing',
+      email: 'jane@example.com',
+      password: 'hash',
+      role: UserRole.Author,
+    });
 
     await expect(authService.signup(buildSignupPayload())).rejects.toEqual(
       expect.objectContaining({
         response: {
           Success: false,
+          Message: 'Email already exists.',
+          Object: null,
           Errors: ['Email already exists.'],
         },
         status: 409,
       }),
     );
-    expect(prisma.user.create).not.toHaveBeenCalled();
+    expect(usersRepository.create).not.toHaveBeenCalled();
   });
 
   it('hashes password and creates a new user', async () => {
-    prisma.user.findUnique.mockResolvedValue(null);
+    usersRepository.findByEmail.mockResolvedValue(null);
     let capturedCreateArgs: unknown;
-    prisma.user.create.mockImplementation((args: unknown) => {
+    usersRepository.create.mockImplementation((args: unknown) => {
       capturedCreateArgs = args;
 
       return Promise.resolve({
         id: 'new-user-id',
         name: 'Jane Doe',
         email: 'jane@example.com',
-        role: UserRole.AUTHOR,
+        password: 'hashed-password',
+        role: UserRole.Author,
       });
     });
 
     const result = await authService.signup(buildSignupPayload());
 
-    expect(prisma.user.create).toHaveBeenCalledTimes(1);
+    expect(usersRepository.create).toHaveBeenCalledTimes(1);
     expect(capturedCreateArgs).toBeDefined();
     const createArgs = capturedCreateArgs as {
-      data: { name: string; email: string; password: string; role: UserRole };
-      select: { id: true; name: true; email: true; role: true };
+      name: string;
+      email: string;
+      password: string;
+      role: UserRole;
     };
-    const hashedPassword = createArgs.data.password;
+    const hashedPassword = createArgs.password;
 
-    expect(createArgs.data.name).toBe('Jane Doe');
-    expect(createArgs.data.email).toBe('jane@example.com');
-    expect(createArgs.data.role).toBe(UserRole.AUTHOR);
-    expect(createArgs.select).toEqual({
-      id: true,
-      name: true,
-      email: true,
-      role: true,
-    });
+    expect(createArgs.name).toBe('Jane Doe');
+    expect(createArgs.email).toBe('jane@example.com');
+    expect(createArgs.role).toBe(UserRole.Author);
     expect(hashedPassword).not.toBe('StrongPass1!');
     expect(await bcrypt.compare('StrongPass1!', hashedPassword)).toBe(true);
     expect(result).toEqual({
       Success: true,
-      Data: {
+      Message: 'User registered successfully.',
+      Object: {
         id: 'new-user-id',
         name: 'Jane Doe',
         email: 'jane@example.com',
-        role: 'author',
+        role: 'Author',
       },
+      Errors: null,
     });
   });
 
   it('maps prisma unique violations to conflict response', async () => {
-    prisma.user.findUnique.mockResolvedValue(null);
-    prisma.user.create.mockRejectedValue({ code: 'P2002' });
+    usersRepository.findByEmail.mockResolvedValue(null);
+    usersRepository.create.mockRejectedValue({ code: 'P2002' });
 
     await expect(
       authService.signup(buildSignupPayload()),
@@ -144,8 +148,8 @@ describe('AuthService', () => {
   });
 
   it('returns 500 for unexpected persistence failures', async () => {
-    prisma.user.findUnique.mockResolvedValue(null);
-    prisma.user.create.mockRejectedValue(new Error('database unavailable'));
+    usersRepository.findByEmail.mockResolvedValue(null);
+    usersRepository.create.mockRejectedValue(new Error('database unavailable'));
 
     await expect(
       authService.signup(buildSignupPayload()),
@@ -153,12 +157,14 @@ describe('AuthService', () => {
   });
 
   it('returns 401 when user email does not exist', async () => {
-    prisma.user.findUnique.mockResolvedValue(null);
+    usersRepository.findByEmail.mockResolvedValue(null);
 
     await expect(authService.login(buildLoginPayload())).rejects.toEqual(
       expect.objectContaining({
         response: {
           Success: false,
+          Message: 'Invalid email or password.',
+          Object: null,
           Errors: ['Invalid email or password.'],
         },
         status: 401,
@@ -168,10 +174,11 @@ describe('AuthService', () => {
   });
 
   it('returns 401 when password does not match', async () => {
-    prisma.user.findUnique.mockResolvedValue({
+    usersRepository.findByEmail.mockResolvedValue({
       id: 'user-id',
+      email: 'jane@example.com',
       password: await bcrypt.hash('DifferentPass1!', 12),
-      role: UserRole.AUTHOR,
+      role: UserRole.Author,
     });
 
     await expect(authService.login(buildLoginPayload())).rejects.toBeInstanceOf(
@@ -181,10 +188,11 @@ describe('AuthService', () => {
   });
 
   it('returns JWT token when credentials are valid', async () => {
-    prisma.user.findUnique.mockResolvedValue({
+    usersRepository.findByEmail.mockResolvedValue({
       id: 'user-id',
+      email: 'jane@example.com',
       password: await bcrypt.hash('StrongPass1!', 12),
-      role: UserRole.AUTHOR,
+      role: UserRole.Author,
     });
     jwtService.signAsync.mockResolvedValue('signed-jwt');
 
@@ -192,21 +200,24 @@ describe('AuthService', () => {
 
     expect(jwtService.signAsync).toHaveBeenCalledWith({
       sub: 'user-id',
-      role: 'author',
+      role: 'Author',
     });
     expect(result).toEqual({
       Success: true,
-      Data: {
+      Message: 'Login successful.',
+      Object: {
         accessToken: 'signed-jwt',
       },
+      Errors: null,
     });
   });
 
   it('returns 500 when token generation fails', async () => {
-    prisma.user.findUnique.mockResolvedValue({
+    usersRepository.findByEmail.mockResolvedValue({
       id: 'user-id',
+      email: 'jane@example.com',
       password: await bcrypt.hash('StrongPass1!', 12),
-      role: UserRole.READER,
+      role: UserRole.Reader,
     });
     jwtService.signAsync.mockRejectedValue(new Error('jwt failure'));
 
