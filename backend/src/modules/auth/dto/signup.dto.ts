@@ -12,7 +12,7 @@ import {
 
 const NAME_PATTERN = /^[A-Za-z]+(?:\s[A-Za-z]+)*$/;
 const PASSWORD_SPECIAL_CHARACTER_PATTERN = /[^A-Za-z0-9]/;
-const ALLOWED_ROLES = ['author', 'reader'] as const;
+const ALLOWED_ROLES = ['Author', 'Reader'] as const;
 
 export type AllowedRole = (typeof ALLOWED_ROLES)[number];
 
@@ -37,7 +37,9 @@ const normalizeRole = (value: unknown): unknown => {
     return value;
   }
 
-  return value.trim().toLowerCase();
+  // Capitalize first letter to match enum values
+  const trimmed = value.trim();
+  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase();
 };
 
 export class SignupDto {
@@ -100,13 +102,13 @@ export class SignupDto {
   @ApiProperty({
     description: 'User role.',
     enum: ALLOWED_ROLES,
-    example: 'author',
+    example: 'Author',
   })
   @Transform(({ value }) => normalizeRole(value))
   @IsString({ message: 'role must be a string.' })
   @IsNotEmpty({ message: 'role is required.' })
   @IsIn(ALLOWED_ROLES, {
-    message: "role must be either 'author' or 'reader'.",
+    message: "role must be either 'Author' or 'Reader'.",
   })
   role!: AllowedRole;
 }

@@ -11,8 +11,9 @@ import {
   createSwaggerCustomOptions,
   createSwaggerDocumentConfig,
 } from './config/swagger.config';
-import { ErrorResponse } from './modules/auth/auth.types';
 import { RuntimeConfig } from './config/configuration';
+import { GlobalExceptionFilter } from './common/filters/http-exception.filter';
+import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 
 const getCorsOrigin = (origins: string[]): boolean | string[] => {
   if (origins.length === 0 || origins.includes('*')) {
@@ -57,13 +58,17 @@ export function setupApp(app: INestApplication): void {
       exceptionFactory: (errors: ValidationError[]) =>
         new BadRequestException({
           Success: false,
+          Message: 'Validation failed',
+          Object: null,
           Errors: flattenValidationErrors(errors),
-        } satisfies ErrorResponse),
+        }),
       transformOptions: {
         enableImplicitConversion: true,
       },
     }),
   );
+  app.useGlobalInterceptors(new ResponseInterceptor());
+  app.useGlobalFilters(new GlobalExceptionFilter());
 
   if (trustProxy) {
     const adapterInstance = app.getHttpAdapter().getInstance() as {

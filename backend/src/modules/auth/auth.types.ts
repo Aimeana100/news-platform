@@ -1,16 +1,23 @@
 import type { UserRole as PrismaUserRole } from '../../generated/prisma/enums';
 
-export interface ErrorResponse {
-  Success: false;
-  Errors: string[];
+export interface ApiResponse<T> {
+  Success: boolean;
+  Message: string;
+  Object: T | null;
+  Errors: string[] | null;
 }
 
-export interface SuccessResponse<TData> {
-  Success: true;
-  Data: TData;
+export interface PaginatedResponse<T> {
+  Success: boolean;
+  Message: string;
+  Object: T[];
+  PageNumber: number;
+  PageSize: number;
+  TotalSize: number;
+  Errors: null;
 }
 
-export type SignupResponseRole = Lowercase<PrismaUserRole>;
+export type SignupResponseRole = PrismaUserRole;
 
 export interface SignupResponseData {
   id: string;

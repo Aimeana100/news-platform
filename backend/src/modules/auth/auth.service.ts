@@ -7,83 +7,80 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
-import { UserRole } from '../../generated/prisma/enums';
-import { PrismaService } from '../../prisma/prisma.service';
+import { UsersRepository } from '../users/repositories/users.repository';
 import { LoginDto } from './dto/login.dto';
 import { SignupDto } from './dto/signup.dto';
 import {
-  ErrorResponse,
+  ApiResponse,
   LoginResponseData,
   SignupResponseData,
-  SuccessResponse,
 } from './auth.types';
 
-const EMAIL_ALREADY_EXISTS_ERROR = 'Email already exists.';
-const INVALID_CREDENTIALS_ERROR = 'Invalid email or password.';
-const SIGNUP_GENERIC_ERROR =
+const EMAIL_ALREADY_EXISTS_MESSAGE = 'Email already exists.';
+const INVALID_CREDENTIALS_MESSAGE = 'Invalid email or password.';
+const SIGNUP_GENERIC_MESSAGE =
   'Unable to create account at the moment. Please try again later.';
-const LOGIN_GENERIC_ERROR =
+const LOGIN_GENERIC_MESSAGE =
   'Unable to log in at the moment. Please try again later.';
+
+const SIGNUP_SUCCESS_MESSAGE = 'User registered successfully.';
+const LOGIN_SUCCESS_MESSAGE = 'Login successful.';
+
+const BCRYPT_SALT_ROUNDS = 12;
 
 @Injectable()
 export class AuthService {
-  private static readonly BCRYPT_SALT_ROUNDS = 12;
   private readonly logger = new Logger(AuthService.name);
 
   constructor(
-    private readonly prisma: PrismaService,
+    private readonly usersRepository: UsersRepository,
     private readonly jwtService: JwtService,
   ) {}
 
-  async signup(
-    payload: SignupDto,
-  ): Promise<SuccessResponse<SignupResponseData>> {
-    const existingUser = await this.prisma.user.findUnique({
-      where: {
-        email: payload.email,
-      },
-      select: {
-        id: true,
-      },
-    });
+  async signup(payload: SignupDto): Promise<ApiResponse<SignupResponseData>> {
+    const existingUser = await this.usersRepository.findByEmail(payload.email);
 
     if (existingUser) {
-      throw this.buildEmailConflictException();
+      throw new ConflictException({
+        Success: false,
+        Message: EMAIL_ALREADY_EXISTS_MESSAGE,
+        Object: null,
+        Errors: [EMAIL_ALREADY_EXISTS_MESSAGE],
+      });
     }
 
     const passwordHash = await bcrypt.hash(
       payload.password,
-      AuthService.BCRYPT_SALT_ROUNDS,
+      BCRYPT_SALT_ROUNDS,
     );
 
     try {
-      const createdUser = await this.prisma.user.create({
-        data: {
-          name: payload.name,
-          email: payload.email,
-          password: passwordHash,
-          role: this.mapSignupRoleToPrismaRole(payload.role),
-        },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          role: true,
-        },
+      const createdUser = await this.usersRepository.create({
+        name: payload.name,
+        email: payload.email,
+        password: passwordHash,
+        role: payload.role,
       });
 
       return {
         Success: true,
-        Data: {
+        Message: SIGNUP_SUCCESS_MESSAGE,
+        Object: {
           id: createdUser.id,
           name: createdUser.name,
           email: createdUser.email,
-          role: this.mapPrismaRoleToApiRole(createdUser.role),
+          role: createdUser.role,
         },
+        Errors: null,
       };
     } catch (error) {
       if (this.isUniqueConstraintViolation(error)) {
-        throw this.buildEmailConflictException();
+        throw new ConflictException({
+          Success: false,
+          Message: EMAIL_ALREADY_EXISTS_MESSAGE,
+          Object: null,
+          Errors: [EMAIL_ALREADY_EXISTS_MESSAGE],
+        });
       }
 
       this.logger.error(
@@ -93,32 +90,23 @@ export class AuthService {
 
       throw new InternalServerErrorException({
         Success: false,
-        Errors: [SIGNUP_GENERIC_ERROR],
-      } satisfies ErrorResponse);
+        Message: SIGNUP_GENERIC_MESSAGE,
+        Object: null,
+        Errors: [SIGNUP_GENERIC_MESSAGE],
+      });
     }
   }
 
-  private buildEmailConflictException(): ConflictException {
-    return new ConflictException({
-      Success: false,
-      Errors: [EMAIL_ALREADY_EXISTS_ERROR],
-    } satisfies ErrorResponse);
-  }
-
-  async login(payload: LoginDto): Promise<SuccessResponse<LoginResponseData>> {
-    const user = await this.prisma.user.findUnique({
-      where: {
-        email: payload.email,
-      },
-      select: {
-        id: true,
-        password: true,
-        role: true,
-      },
-    });
+  async login(payload: LoginDto): Promise<ApiResponse<LoginResponseData>> {
+    const user = await this.usersRepository.findByEmail(payload.email);
 
     if (!user) {
-      throw this.buildInvalidCredentialsException();
+      throw new UnauthorizedException({
+        Success: false,
+        Message: INVALID_CREDENTIALS_MESSAGE,
+        Object: null,
+        Errors: [INVALID_CREDENTIALS_MESSAGE],
+      });
     }
 
     const passwordMatches = await bcrypt.compare(
@@ -126,20 +114,27 @@ export class AuthService {
       user.password,
     );
     if (!passwordMatches) {
-      throw this.buildInvalidCredentialsException();
+      throw new UnauthorizedException({
+        Success: false,
+        Message: INVALID_CREDENTIALS_MESSAGE,
+        Object: null,
+        Errors: [INVALID_CREDENTIALS_MESSAGE],
+      });
     }
 
     try {
       const accessToken = await this.jwtService.signAsync({
         sub: user.id,
-        role: this.mapPrismaRoleToApiRole(user.role),
+        role: user.role,
       });
 
       return {
         Success: true,
-        Data: {
+        Message: LOGIN_SUCCESS_MESSAGE,
+        Object: {
           accessToken,
         },
+        Errors: null,
       };
     } catch (error) {
       this.logger.error(
@@ -149,28 +144,15 @@ export class AuthService {
 
       throw new InternalServerErrorException({
         Success: false,
-        Errors: [LOGIN_GENERIC_ERROR],
-      } satisfies ErrorResponse);
+        Message: LOGIN_GENERIC_MESSAGE,
+        Object: null,
+        Errors: [LOGIN_GENERIC_MESSAGE],
+      });
     }
   }
 
   private isUniqueConstraintViolation(error: unknown): boolean {
     const maybeCode = (error as { code?: unknown }).code;
     return maybeCode === 'P2002';
-  }
-
-  private buildInvalidCredentialsException(): UnauthorizedException {
-    return new UnauthorizedException({
-      Success: false,
-      Errors: [INVALID_CREDENTIALS_ERROR],
-    } satisfies ErrorResponse);
-  }
-
-  private mapSignupRoleToPrismaRole(role: SignupDto['role']): UserRole {
-    return role === 'author' ? UserRole.AUTHOR : UserRole.READER;
-  }
-
-  private mapPrismaRoleToApiRole(role: UserRole): SignupResponseData['role'] {
-    return role === UserRole.AUTHOR ? 'author' : 'reader';
   }
 }

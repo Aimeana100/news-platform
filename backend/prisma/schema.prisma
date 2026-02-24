@@ -16,13 +16,13 @@ datasource db {
 }
 
 enum UserRole {
-  AUTHOR @map("Author")
-  READER @map("Reader")
+  Author
+  Reader
 }
 
 enum ArticleStatus {
-  DRAFT     @map("Draft")
-  PUBLISHED @map("Published")
+  Draft
+  Published
 }
 
 model User {
@@ -42,7 +42,7 @@ model Article {
   title          String           @db.VarChar(150)
   content        String           @db.Text
   category       String           @db.VarChar(100)
-  status         ArticleStatus    @default(DRAFT)
+  status         ArticleStatus    @default(Draft)
   authorId       String           @db.Uuid
   createdAt      DateTime         @default(now())
   deletedAt      DateTime?
