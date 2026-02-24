@@ -16,13 +16,13 @@ datasource db {
 }
 
 enum UserRole {
-  AUTHOR
-  READER
+  AUTHOR @map("Author")
+  READER @map("Reader")
 }
 
 enum ArticleStatus {
-  DRAFT
-  PUBLISHED
+  DRAFT     @map("Draft")
+  PUBLISHED @map("Published")
 }
 
 model User {

@@ -1,7 +1,17 @@
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import {
+  BadRequestException,
+  INestApplication,
+  ValidationError,
+  ValidationPipe,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
+import {
+  createSwaggerCustomOptions,
+  createSwaggerDocumentConfig,
+} from './config/swagger.config';
+import { ErrorResponse } from './modules/auth/auth.types';
 import { RuntimeConfig } from './config/configuration';
 
 const getCorsOrigin = (origins: string[]): boolean | string[] => {
@@ -10,6 +20,17 @@ const getCorsOrigin = (origins: string[]): boolean | string[] => {
   }
 
   return origins;
+};
+
+const flattenValidationErrors = (
+  validationErrors: ValidationError[],
+): string[] => {
+  return validationErrors.flatMap((error) => {
+    const currentConstraints = Object.values(error.constraints ?? {});
+    const childConstraints = flattenValidationErrors(error.children ?? []);
+
+    return [...currentConstraints, ...childConstraints];
+  });
 };
 
 export function setupApp(app: INestApplication): void {
@@ -33,6 +54,11 @@ export function setupApp(app: INestApplication): void {
       transform: true,
       forbidUnknownValues: true,
       forbidNonWhitelisted: true,
+      exceptionFactory: (errors: ValidationError[]) =>
+        new BadRequestException({
+          Success: false,
+          Errors: flattenValidationErrors(errors),
+        } satisfies ErrorResponse),
       transformOptions: {
         enableImplicitConversion: true,
       },
@@ -47,28 +73,25 @@ export function setupApp(app: INestApplication): void {
   }
 
   if (swaggerEnabled) {
-    const title = configService.get('swagger.title', { infer: true });
-    const description = configService.get('swagger.description', {
+    const swaggerConfig = configService.get('swagger', {
       infer: true,
     });
-    const version = configService.get('swagger.version', { infer: true });
-    const path = configService.get('swagger.path', { infer: true });
 
-    const swaggerConfig = new DocumentBuilder()
-      .setTitle(title)
-      .setDescription(description)
-      .setVersion(version)
-      .build();
-
-    const swaggerDocument = SwaggerModule.createDocument(app, swaggerConfig, {
-      deepScanRoutes: true,
-    });
-
-    SwaggerModule.setup(path, app, swaggerDocument, {
-      customSiteTitle: `${title} docs`,
-      swaggerOptions: {
-        persistAuthorization: true,
+    const swaggerDocument = SwaggerModule.createDocument(
+      app,
+      createSwaggerDocumentConfig(swaggerConfig),
+      {
+        deepScanRoutes: true,
+        operationIdFactory: (controllerKey, methodKey) =>
+          `${controllerKey}_${methodKey}`,
       },
-    });
+    );
+
+    SwaggerModule.setup(
+      swaggerConfig.path,
+      app,
+      swaggerDocument,
+      createSwaggerCustomOptions(swaggerConfig.title),
+    );
   }
 }

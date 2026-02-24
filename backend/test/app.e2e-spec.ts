@@ -40,4 +40,30 @@ describe('AppController (e2e)', () => {
       healthPath: '/health',
     });
   });
+
+  it('/api/v1/auth/signup (POST) should validate payload and return structured errors', () => {
+    return request(app.getHttpServer())
+      .post('/api/v1/auth/signup')
+      .send({
+        name: '123',
+        email: 'invalid-email',
+        password: 'weak',
+        role: 'admin',
+      })
+      .expect(400)
+      .expect(({ body }: { body: { Success: boolean; Errors: string[] } }) => {
+        expect(body).toMatchObject({
+          Success: false,
+        });
+        expect(body.Errors).toEqual(
+          expect.arrayContaining([
+            'name must contain only alphabets and single spaces.',
+            'email must be a valid email address.',
+            "role must be either 'author' or 'reader'.",
+            'password must be at least 8 characters long.',
+            'password must contain at least one uppercase letter.',
+          ]),
+        );
+      });
+  });
 });

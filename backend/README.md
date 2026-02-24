@@ -27,6 +27,7 @@ Production-ready NestJS backend baseline for a news platform.
 | **class-transformer**        | Transforms plain objects into typed classes for validation and safety                          |
 | **prisma**                   | Database schema management and migrations                                                      |
 | **@prisma/adapter-pg + pg**  | PostgreSQL driver adapter stack used by Prisma                                                 |
+| **bcrypt**                   | Secure password hashing for authentication                                                      |
 | **bullmq**                   | Distributed job queue for asynchronous and background processing                               |
 | **ioredis**                  | Redis client used by BullMQ for queue and worker communication                                 |
 | **@nestjs/swagger**          | Automatic OpenAPI (Swagger) documentation generation                                           |
@@ -144,7 +145,13 @@ Services:
 - `GET /api/v1` service metadata
 - `GET /api/v1/health/live` liveness probe
 - `GET /api/v1/health/ready` readiness probe (database + redis checks)
+- `POST /api/v1/auth/signup` user registration
 - `GET /docs` Swagger UI
+
+## Swagger Quick Test Notes
+
+- Swagger is configured with `persistAuthorization` and Bearer auth support.
+- `POST /api/v1/auth/signup` includes request body examples and response examples (201, 400, 409) for quick testing via `Try it out`.
 
 ## Prisma Commands
 
