@@ -14,3 +14,68 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+enum UserRole {
+  AUTHOR
+  READER
+}
+
+enum ArticleStatus {
+  DRAFT
+  PUBLISHED
+}
+
+model User {
+  id       String    @id @default(uuid()) @db.Uuid
+  name     String    @db.VarChar(120)
+  email    String    @unique @db.VarChar(320)
+  password String    @db.VarChar(255)
+  role     UserRole
+  articles Article[]
+  readLogs ReadLog[]
+
+  @@index([role])
+}
+
+model Article {
+  id             String           @id @default(uuid()) @db.Uuid
+  title          String           @db.VarChar(150)
+  content        String           @db.Text
+  category       String           @db.VarChar(100)
+  status         ArticleStatus    @default(DRAFT)
+  authorId       String           @db.Uuid
+  createdAt      DateTime         @default(now())
+  deletedAt      DateTime?
+  author         User             @relation(fields: [authorId], references: [id])
+  readLogs       ReadLog[]
+  dailyAnalytics DailyAnalytics[]
+
+  @@index([authorId])
+  @@index([category])
+  @@index([status])
+  @@index([deletedAt])
+}
+
+model ReadLog {
+  id        String   @id @default(uuid()) @db.Uuid
+  articleId String   @db.Uuid
+  readerId  String?  @db.Uuid
+  readAt    DateTime @default(now())
+  article   Article  @relation(fields: [articleId], references: [id])
+  reader    User?    @relation(fields: [readerId], references: [id], onDelete: SetNull)
+
+  @@index([articleId])
+  @@index([readerId])
+  @@index([readAt])
+}
+
+model DailyAnalytics {
+  id        String   @id @default(uuid()) @db.Uuid
+  articleId String   @db.Uuid
+  viewCount Int      @default(0)
+  date      DateTime @db.Date
+  article   Article  @relation(fields: [articleId], references: [id])
+
+  @@unique([articleId, date])
+  @@index([date])
+}
