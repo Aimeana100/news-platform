@@ -8,7 +8,12 @@ import {
 import { ArticlesRepository } from './repositories/articles.repository';
 import { CreateArticleDto } from './dto/create-article.dto';
 import { UpdateArticleDto } from './dto/update-article.dto';
-import { ApiResponse, ArticleResponseData } from './articles.types';
+import { GetArticlesQueryDto } from './dto/get-articles.query.dto';
+import {
+  ApiResponse,
+  ArticleResponseData,
+  PaginationMeta,
+} from './articles.types';
 
 // Error messages
 const ARTICLE_NOT_FOUND_MESSAGE = 'Article not found.';
@@ -30,6 +35,43 @@ export class ArticlesService {
   private readonly logger = new Logger(ArticlesService.name);
 
   constructor(private readonly articlesRepository: ArticlesRepository) {}
+
+  /**
+   * Get public feed of published articles with filtering and pagination
+   * No authentication required - public endpoint
+   */
+  async findPublished(
+    query: GetArticlesQueryDto,
+  ): Promise<
+    ApiResponse<{ articles: ArticleResponseData[]; pagination: PaginationMeta }>
+  > {
+    const { page = 1, size = 10, category, author, q } = query;
+
+    const result = await this.articlesRepository.findPublished({
+      category,
+      author,
+      search: q,
+      page,
+      size,
+    });
+
+    return {
+      Success: true,
+      Message: 'Articles retrieved successfully.',
+      Object: {
+        articles: result.items.map((article) =>
+          this.mapToResponseData(article),
+        ),
+        pagination: {
+          page: result.page,
+          size: result.size,
+          total: result.total,
+          totalPages: result.totalPages,
+        },
+      },
+      Errors: null,
+    };
+  }
 
   /**
    * Create a new article for an author

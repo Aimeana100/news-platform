@@ -9,6 +9,7 @@ import {
   ParseUUIDPipe,
   Post,
   Put,
+  Query,
   Req,
 } from '@nestjs/common';
 import {
@@ -27,7 +28,12 @@ import { Request } from 'express';
 import { ArticlesService } from './articles.service';
 import { CreateArticleDto } from './dto/create-article.dto';
 import { UpdateArticleDto } from './dto/update-article.dto';
-import { ApiResponse, ArticleResponseData } from './articles.types';
+import { GetArticlesQueryDto } from './dto/get-articles.query.dto';
+import {
+  ApiResponse,
+  ArticleResponseData,
+  PaginationMeta,
+} from './articles.types';
 
 interface AuthenticatedRequest extends Request {
   user: {
@@ -40,6 +46,76 @@ interface AuthenticatedRequest extends Request {
 @Controller('articles')
 export class ArticlesController {
   constructor(private readonly articlesService: ArticlesService) {}
+
+  /**
+   * GET /articles - Public endpoint to discover published news
+   * No authentication required
+   *
+   * Features:
+   * - Returns only published articles (status = 'Published')
+   * - Excludes soft-deleted articles (deletedAt IS NULL)
+   * - Supports filtering by category (exact match)
+   * - Supports filtering by author (partial, case-insensitive)
+   * - Supports keyword search in title (partial, case-insensitive)
+   * - Pagination with configurable page and size
+   */
+  @Get()
+  @ApiOperation({
+    summary: 'Get published articles (Public Feed)',
+    description:
+      'Public endpoint to discover published news. Returns only published articles, ' +
+      'excludes soft-deleted content. Supports filtering by category, author name, ' +
+      'and keyword search in title.',
+  })
+  @ApiOkResponse({
+    description: 'Articles retrieved successfully.',
+    schema: {
+      example: {
+        Success: true,
+        Message: 'Articles retrieved successfully.',
+        Object: {
+          articles: [
+            {
+              id: 'f8497cff-310f-4f43-8d35-63513f0d68ea',
+              title: 'Understanding NestJS Architecture',
+              content:
+                '# Introduction\n\nNestJS is a progressive Node.js framework...',
+              category: 'Technology',
+              status: 'Published',
+              authorId: 'author-uuid-here',
+              createdAt: '2024-01-15T10:30:00.000Z',
+              deletedAt: null,
+            },
+          ],
+          pagination: {
+            page: 1,
+            size: 10,
+            total: 50,
+            totalPages: 5,
+          },
+        },
+        Errors: null,
+      },
+    },
+  })
+  @ApiBadRequestResponse({
+    description: 'Validation failed.',
+    schema: {
+      example: {
+        Success: false,
+        Message: 'Validation failed',
+        Object: null,
+        Errors: ['page must be an integer.', 'size must not exceed 100.'],
+      },
+    },
+  })
+  async findPublished(
+    @Query() query: GetArticlesQueryDto,
+  ): Promise<
+    ApiResponse<{ articles: ArticleResponseData[]; pagination: PaginationMeta }>
+  > {
+    return this.articlesService.findPublished(query);
+  }
 
   /**
    * POST /articles - Create a new article

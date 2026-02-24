@@ -26,3 +26,15 @@ export interface ArticleListResponseData {
   articles: ArticleResponseData[];
   total: number;
 }
+
+export interface PaginationMeta {
+  page: number;
+  size: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface PaginatedArticlesResponse {
+  articles: ArticleResponseData[];
+  pagination: PaginationMeta;
+}

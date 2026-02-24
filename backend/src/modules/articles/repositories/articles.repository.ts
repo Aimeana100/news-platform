@@ -23,6 +23,22 @@ export interface FindArticlesByAuthorOptions {
   includeDeleted?: boolean;
 }
 
+export interface FindPublishedArticlesOptions {
+  category?: string;
+  author?: string;
+  search?: string;
+  page: number;
+  size: number;
+}
+
+export interface PaginatedResult<T> {
+  items: T[];
+  total: number;
+  page: number;
+  size: number;
+  totalPages: number;
+}
+
 @Injectable()
 export class ArticlesRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -142,5 +158,77 @@ export class ArticlesRepository {
         deletedAt: null,
       },
     });
+  }
+
+  /**
+   * Find published articles for public feed with filtering and pagination
+   * Always excludes soft-deleted articles
+   */
+  async findPublished(
+    options: FindPublishedArticlesOptions,
+  ): Promise<PaginatedResult<Article>> {
+    const { category, author, search, page, size } = options;
+
+    // Build the where clause
+    const where: any = {
+      // Only published articles
+      status: ArticleStatus.Published,
+      // Exclude soft-deleted articles
+      deletedAt: null,
+    };
+
+    // Category filter - exact match
+    if (category) {
+      where.category = category;
+    }
+
+    // Author filter - partial, case-insensitive match on author name
+    if (author) {
+      where.author = {
+        name: {
+          contains: author,
+          mode: 'insensitive',
+        },
+      };
+    }
+
+    // Keyword search - partial match on title (case-insensitive)
+    if (search) {
+      where.title = {
+        contains: search,
+        mode: 'insensitive',
+      };
+    }
+
+    // Execute count and findMany in parallel for efficiency
+    const [items, total] = await Promise.all([
+      this.prisma.article.findMany({
+        where,
+        include: {
+          author: {
+            select: {
+              id: true,
+              name: true,
+              email: false,
+              role: true,
+            },
+          },
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+        skip: (page - 1) * size,
+        take: size,
+      }),
+      this.prisma.article.count({ where }),
+    ]);
+
+    return {
+      items,
+      total,
+      page,
+      size,
+      totalPages: Math.ceil(total / size),
+    };
   }
 }
