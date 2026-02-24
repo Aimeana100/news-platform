@@ -18,3 +18,7 @@ export interface SignupResponseData {
   email: string;
   role: SignupResponseRole;
 }
+
+export interface LoginResponseData {
+  accessToken: string;
+}

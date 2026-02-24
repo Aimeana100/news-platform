@@ -66,4 +66,25 @@ describe('AppController (e2e)', () => {
         );
       });
   });
+
+  it('/api/v1/auth/login (POST) should validate payload and return structured errors', () => {
+    return request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .send({
+        email: 'invalid-email',
+        password: '',
+      })
+      .expect(400)
+      .expect(({ body }: { body: { Success: boolean; Errors: string[] } }) => {
+        expect(body).toMatchObject({
+          Success: false,
+        });
+        expect(body.Errors).toEqual(
+          expect.arrayContaining([
+            'email must be a valid email address.',
+            'password is required.',
+          ]),
+        );
+      });
+  });
 });

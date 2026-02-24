@@ -4,12 +4,19 @@ import {
   ApiBadRequestResponse,
   ApiConflictResponse,
   ApiCreatedResponse,
+  ApiOkResponse,
   ApiOperation,
   ApiTags,
+  ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
+import { LoginDto } from './dto/login.dto';
 import { SignupDto } from './dto/signup.dto';
-import { SignupResponseData, SuccessResponse } from './auth.types';
+import {
+  LoginResponseData,
+  SignupResponseData,
+  SuccessResponse,
+} from './auth.types';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -81,5 +88,56 @@ export class AuthController {
     @Body() payload: SignupDto,
   ): Promise<SuccessResponse<SignupResponseData>> {
     return this.authService.signup(payload);
+  }
+
+  @Post('login')
+  @ApiOperation({ summary: 'Authenticate user and issue access token' })
+  @ApiBody({
+    type: LoginDto,
+    description: 'Login payload',
+    examples: {
+      login: {
+        summary: 'Valid login',
+        value: {
+          email: 'jane.doe@example.com',
+          password: 'Str0ngP@ssword!',
+        },
+      },
+    },
+  })
+  @ApiOkResponse({
+    description: 'Authenticated successfully.',
+    schema: {
+      example: {
+        Success: true,
+        Data: {
+          accessToken:
+            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJmODQ5N2NmZi0zMTBmLTRmNDMtOGQzNS02MzUxM2YwZDY4ZWEiLCJyb2xlIjoiYXV0aG9yIiwiZXhwIjoxNzQwNDAwMDAwfQ.signature',
+        },
+      },
+    },
+  })
+  @ApiBadRequestResponse({
+    description: 'Request payload validation failed.',
+    schema: {
+      example: {
+        Success: false,
+        Errors: ['email must be a valid email address.'],
+      },
+    },
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Invalid credentials.',
+    schema: {
+      example: {
+        Success: false,
+        Errors: ['Invalid email or password.'],
+      },
+    },
+  })
+  async login(
+    @Body() payload: LoginDto,
+  ): Promise<SuccessResponse<LoginResponseData>> {
+    return this.authService.login(payload);
   }
 }

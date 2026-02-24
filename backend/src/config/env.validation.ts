@@ -234,7 +234,7 @@ export class EnvironmentVariables {
 
   @IsString({ message: 'JWT_EXPIRES_IN must be a string' })
   @IsNotEmpty({ message: 'JWT_EXPIRES_IN must not be empty' })
-  JWT_EXPIRES_IN = '15m';
+  JWT_EXPIRES_IN = '12h';
 
   @Transform(({ value }) => toBoolean(value))
   @IsBoolean({ message: 'SWAGGER_ENABLED must be a boolean' })
