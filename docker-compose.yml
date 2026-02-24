@@ -36,6 +36,20 @@ services:
       retries: 5
       start_period: 5s
 
+  migrate:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: deps
+    container_name: news-platform-migrate
+    restart: 'no'
+    env_file:
+      - ./backend/.env.docker
+    command: ['npm', 'run', 'prisma:migrate:deploy']
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   backend:
     build:
       context: ./backend
@@ -49,6 +63,8 @@ services:
     volumes:
       - backend_logs:/usr/src/app/logs
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redis:

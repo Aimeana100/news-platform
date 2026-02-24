@@ -9,6 +9,12 @@ Production-ready NestJS backend baseline for a news platform.
 - Redis (for queue/cache/session-ready infrastructure)
 - Swagger/OpenAPI
 
+## Prisma Client Strategy
+
+- Uses Prisma v7 `prisma-client` generator (instead of legacy `prisma-client-js`).
+- Generates client code to `src/generated/prisma`.
+- Uses `engineType = "client"` with `@prisma/adapter-pg` and `moduleFormat = "cjs"` for compatibility with the current Jest/Nest toolchain.
+
 ## Main Dependencies
 
 | Library                      | Purpose                                                                                        |
@@ -19,19 +25,13 @@ Production-ready NestJS backend baseline for a news platform.
 | **@nestjs/config**           | Centralized configuration management and environment variable loading                          |
 | **class-validator**          | Declarative validation for DTOs and environment configuration                                  |
 | **class-transformer**        | Transforms plain objects into typed classes for validation and safety                          |
-| **@nestjs/passport**         | NestJS integration for Passport authentication strategies                                      |
-| **passport**                 | Authentication middleware used for strategy-based auth                                         |
-| **passport-jwt**             | JWT-based authentication strategy                                                              |
-| **@nestjs/jwt**              | JWT signing and verification with centralized configuration                                    |
-| **bcrypt**                   | Secure password hashing and comparison                                                         |
-| **jsonwebtoken**             | Low-level JWT utilities used by authentication libraries                                       |
 | **prisma**                   | Database schema management and migrations                                                      |
-| **@prisma/client**           | Type-safe database client generated from Prisma schema                                         |
+| **@prisma/adapter-pg + pg**  | PostgreSQL driver adapter stack used by Prisma                                                 |
 | **bullmq**                   | Distributed job queue for asynchronous and background processing                               |
 | **ioredis**                  | Redis client used by BullMQ for queue and worker communication                                 |
 | **@nestjs/swagger**          | Automatic OpenAPI (Swagger) documentation generation                                           |
 | **swagger-ui-express**       | Interactive Swagger UI for API exploration                                                     |
-| **nest-winston + winston**   | For system logger and application logger.                                                    |
+| **nest-winston + winston**   | Structured system/application logging with redaction and file transport support                |
 ---------------------------------------------------------------------------------------------------------------------------------
 
 ## Setup
@@ -76,6 +76,9 @@ Required production environment variables include:
 NODE_ENV=production
 PORT=3000
 DATABASE_URL=postgresql://postgres:postgres@postgres:5432/news_platform?schema=public
+DB_POOL_MAX=20
+DB_POOL_IDLE_TIMEOUT_MS=30000
+DB_POOL_CONNECTION_TIMEOUT_MS=10000
 REDIS_URL=redis://redis:6379
 JWT_SECRET=replace-with-a-secret-at-least-32-characters
 ```
@@ -114,8 +117,8 @@ docker compose up --build
 
 Services:
 
-- `backend`: http://localhost:3000
-- `swagger`: http://localhost:3000/docs
+- `migrate`: runs `prisma migrate deploy` before backend startup
+- `backend`: http://localhost:3000 (Swagger UI at `/docs`)
 - `postgres`: localhost:5432
 - `redis`: localhost:6379
 

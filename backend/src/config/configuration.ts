@@ -18,6 +18,11 @@ export interface RuntimeConfig {
   };
   database: {
     url: string;
+    pool: {
+      max: number;
+      idleTimeoutMs: number;
+      connectionTimeoutMs: number;
+    };
   };
   redis: {
     url: string;
@@ -25,10 +30,6 @@ export interface RuntimeConfig {
   auth: {
     jwtSecret: string;
     jwtExpiresIn: string;
-  };
-  queue: {
-    prefix: string;
-    defaultAttempts: number;
   };
   logging: {
     pretty: boolean;
@@ -66,6 +67,11 @@ const configuration = (): RuntimeConfig => {
     },
     database: {
       url: environment.DATABASE_URL,
+      pool: {
+        max: environment.DB_POOL_MAX,
+        idleTimeoutMs: environment.DB_POOL_IDLE_TIMEOUT_MS,
+        connectionTimeoutMs: environment.DB_POOL_CONNECTION_TIMEOUT_MS,
+      },
     },
     redis: {
       url: environment.REDIS_URL,
@@ -73,10 +79,6 @@ const configuration = (): RuntimeConfig => {
     auth: {
       jwtSecret: environment.JWT_SECRET,
       jwtExpiresIn: environment.JWT_EXPIRES_IN,
-    },
-    queue: {
-      prefix: environment.QUEUE_PREFIX,
-      defaultAttempts: environment.QUEUE_DEFAULT_ATTEMPTS,
     },
     logging: {
       pretty:
